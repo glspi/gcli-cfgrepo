@@ -1,0 +1,6 @@
+asyncssh==2.8.1
+cffi==1.15.0
+cryptography==35.0.0
+pycparser==2.21
+scrapli==2021.7.30
+scrapli-cfg==2021.7.30
