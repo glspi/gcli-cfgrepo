@@ -1,8 +1,9 @@
-import sys
+import os
 import traceback
 import asyncio
 from pathlib import Path
 
+import typer
 from scrapli import AsyncScrapli
 from scrapli_cfg import AsyncScrapliCfg
 
@@ -16,7 +17,7 @@ DEVICE_IP_PORT_MAP = {
     ),
     "spine2": (
         "172.254.0.12",
-        22 if DOCKER else 2212,
+        22 if DOCKER else 21122,
     )
     # "leaf1": (
     #     "172.254.0.21",
@@ -27,6 +28,25 @@ DEVICE_IP_PORT_MAP = {
     #     22 if DOCKER else 2222,
     # ),
 }
+
+app = typer.Typer(name="cfgrepo - config repo get/loader.")
+
+@app.command("get", help="Pull config from switch, put in 'repo'")
+def get():
+    print("get_configs")
+    DEVICES = build_device_list()
+    coroutines = [get_configs(device) for device in DEVICES]
+    asyncio.run(async_main(coroutines))
+    print("got em")
+
+
+@app.command("load", help="Push configs in 'repo' onto switches.")
+def load():
+    print("load_configs")
+    DEVICE_CONFIGS = build_device_config_tuple_list("configs/")
+    coroutines = [load_configs(device_config) for device_config in DEVICE_CONFIGS]
+    asyncio.run(async_main(coroutines))
+    print("put em")
 
 
 def build_device_list():
@@ -71,7 +91,9 @@ def build_device_config_tuple_list(configs_path):
                 DEVICES.append((device, config))
     return DEVICES
 
+
 def create_file(host, config):
+    os.makedirs("configs/", exist_ok=True)
     for name, host_port in DEVICE_IP_PORT_MAP.items():
         if host == host_port[0]:
             with open("configs/" + name, "w") as f:
@@ -115,35 +137,11 @@ async def get_configs(device):
         print(type(e).__name__)
 
 
-async def async_main(funcname):
-    if funcname == "get_configs":
-        DEVICES = build_device_list()
-        coroutines = [get_configs(device) for device in DEVICES]
-
-    elif funcname == "load_configs":
-        DEVICE_CONFIGS = build_device_config_tuple_list("configs/")
-        coroutines = [load_configs(device_config) for device_config in DEVICE_CONFIGS]
-
-    results = await asyncio.gather(*coroutines)
-
+async def async_main(coroutines):
+    _ = await asyncio.gather(*coroutines)
     return None
 
-def main():
-    try:
-        test = sys.argv[1]
-    except IndexError:
-        test = None
-
-    # FIND BETTER VERBS
-    if test == "get":
-        print("get_configs")
-        asyncio.run(async_main("get_configs"))  # Pull from switch, put in 'repo'
-        print("got em")
-    if test == "load":
-        print("load_configs")
-        asyncio.run(async_main("load_configs")) # Push configs to switch, pulled from 'repo'
-        print("put em")
 
 if __name__ == "__main__":
-    main()
+    app()
 

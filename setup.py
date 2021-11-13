@@ -22,5 +22,5 @@ setuptools.setup(
         "Programming Language :: Python :: 3 :: Only",
     ],
     python_requires=">=3.7",
-    entry_points={"console_scripts": ["cfgrepo = cfgrepo_builder.cfgrepo_builder:main"]},
+    entry_points={"console_scripts": ["cfgrepo = cfgrepo_builder.cfgrepo_builder:app"]},
 )
