@@ -1,6 +1,9 @@
 asyncssh==2.8.1
 cffi==1.15.0
+click==8.0.3
 cryptography==35.0.0
+gcli-cfgrepo==0.0.1
 pycparser==2.21
 scrapli==2021.7.30
 scrapli-cfg==2021.7.30
+typer==0.4.0
