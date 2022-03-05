@@ -12,7 +12,7 @@ app = typer.Typer(name="cfgrepo - config repo get/loader.")
 
 
 def grab_device_list(devicemap):
-    temp = __import__(devicemap.strip(".py"))
+    temp = __import__(devicemap.strip(".py"),globals=globals())
     return temp
 
 
