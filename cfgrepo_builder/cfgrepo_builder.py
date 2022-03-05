@@ -41,26 +41,32 @@ def setcfg(inventory: str):
     print("put em")
 
 
+def create_scrapli_device(DEVICE_INVENTORY, device):
+    credentialsgroup = device.get("credentials")
+    group = credentialsgroup or "default"
+    temp =  {
+        "host": device["ip"],
+        "port": device.get("port") or 22,
+        "auth_username": DEVICE_INVENTORY["credentials"][group]["username"],
+        "auth_password": DEVICE_INVENTORY["credentials"][group]["password"],
+        "auth_strict_key": False,
+        "transport": "asyncssh",
+        "platform": device["platform"]
+        }
+    if device.get("transport") == "legacy":
+        temp["transport_options"] = {
+            "asyncssh": {
+                "encryption_algs": ["aes128-cbc", "aes192-cbc", "aes256-ctr", "aes192-ctr"],
+                "kex_algs": ["diffie-hellman-group-exchange-sha1"]#, "aes192-cbc", "aes256-ctr", "aes192-ctr"]
+            }
+        }    
+    return temp
+
+
 def build_device_list(DEVICE_INVENTORY):
     DEVICES = []
     for hostname, device in DEVICE_INVENTORY["devices"].items():
-        temp =  {
-            "host": device["ip"],
-            "port": device.get("port") or 22,
-            "auth_username": DEVICE_INVENTORY["credentials"]["default"]["username"],
-            "auth_password": DEVICE_INVENTORY["credentials"]["default"]["password"],
-            "auth_strict_key": False,
-            "transport": "asyncssh",
-            "platform": device["platform"]
-            }
-        if device.get("transport") == "legacy":
-            temp["transport_options"] = {
-                "asyncssh": {
-                    "encryption_algs": ["aes128-cbc", "aes192-cbc", "aes256-ctr", "aes192-ctr"],
-                    "kex_algs": ["diffie-hellman-group-exchange-sha1"]#, "aes192-cbc", "aes256-ctr", "aes192-ctr"]
-                }
-            }
-        DEVICES.append(temp)
+        DEVICES.append(create_scrapli_device(DEVICE_INVENTORY, device))
 
     return DEVICES
 
@@ -71,27 +77,12 @@ def build_device_config_tuple_list(configs_path, DEVICE_INVENTORY):
     for cfg_file in files:
         hostname = str(cfg_file).replace(configs_path, "")
         for name, device in DEVICE_INVENTORY["devices"].items():
-            if hostname == name:
-                newdevice = {
-                    "host": device["ip"],
-                    "port": device.get("port") or 22,
-                    "auth_username": DEVICE_INVENTORY["credentials"]["default"]["username"],
-                    "auth_password": DEVICE_INVENTORY["credentials"]["default"]["password"],
-                    "auth_strict_key": False,
-                    "transport": "asyncssh",
-                    "platform": device["platform"]
-                }
-                if device.get("transport") == "legacy":
-                    newdevice["transport_options"] = {
-                        "asyncssh": {
-                            "encryption_algs": ["aes128-cbc", "aes192-cbc", "aes256-ctr", "aes192-ctr"],
-                            "kex_algs": ["diffie-hellman-group-exchange-sha1"]#, "aes192-cbc", "aes256-ctr", "aes192-ctr"]
-                        }
-                    }
+            if hostname == name:                
                 print(f"reading {cfg_file}")
                 with open(cfg_file, "r") as f:
                     config = f.read()
 
+                newdevice = create_scrapli_device(DEVICE_INVENTORY, device)
                 DEVICES.append((newdevice, config))
     return DEVICES
 
