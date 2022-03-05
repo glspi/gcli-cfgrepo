@@ -1,3 +1,15 @@
 ---
-  - spine1: 172.254.0.11
-  - spine2: 172.254.0.12
+credentials:
+ default:
+  username: admin
+  password: admin
+#  eos:
+#   username: admin
+#   password: password
+devices:
+  spine1: 
+   ip: 172.254.0.11
+   platform: arista_eos
+  spine2: 
+   ip: 172.254.0.12
+   platform: arista_eos
