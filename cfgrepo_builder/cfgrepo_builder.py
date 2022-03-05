@@ -3,6 +3,7 @@ import traceback
 import asyncio
 from pathlib import Path
 from typing import Dict
+import importlib
 
 import typer
 from scrapli import AsyncScrapli
@@ -12,7 +13,8 @@ app = typer.Typer(name="cfgrepo - config repo get/loader.")
 
 
 def grab_device_list(devicemap):
-    temp = __import__(devicemap.strip(".py"),globals=globals())
+    #temp = __import__(devicemap.strip(".py"),globals=globals())
+    temp = importlib.import_module(devicemap.strip(".py"))
     return temp
 
 
