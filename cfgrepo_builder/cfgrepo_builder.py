@@ -6,11 +6,19 @@ from typing import Dict
 import importlib
 
 import typer
+import yaml
 from scrapli import AsyncScrapli
 from scrapli_cfg import AsyncScrapliCfg
 
 app = typer.Typer(name="cfgrepo - config repo get/loader.")
 
+def load_yaml(filename):
+    try:
+        with open(filename) as _:
+            return yaml.load(_, Loader=yaml.SafeLoader)
+    except:
+        print("Invalid device file!")
+        sys.exit(0)
 
 def grab_device_list(devicemap):
     #temp = __import__(devicemap.strip(".py"),globals=globals())
@@ -21,7 +29,7 @@ def grab_device_list(devicemap):
 @app.command("getcfg", help="Pull config from switch, put in 'repo'")
 def getcfg(devicemap: str):
     print("getcfg")
-    DEVICE_IP_PORT_MAP = grab_device_list(devicemap)
+    DEVICE_IP_PORT_MAP = load_yaml(devicemap)
     DEVICES = build_device_list(DEVICE_IP_PORT_MAP)
     coroutines = [get_configs(device, DEVICE_IP_PORT_MAP) for device in DEVICES]
     asyncio.run(async_main(coroutines))
@@ -30,7 +38,7 @@ def getcfg(devicemap: str):
 
 @app.command("setcfg", help="Push configs in 'repo' onto switches.")
 def setcfg(devicemap: str):
-    DEVICE_IP_PORT_MAP = grab_device_list(devicemap)
+    DEVICE_IP_PORT_MAP = load_yaml(devicemap)
     print("setcfg")
     DEVICE_CONFIGS = build_device_config_tuple_list("configs/", DEVICE_IP_PORT_MAP)
     coroutines = [load_configs(device_config) for device_config in DEVICE_CONFIGS]
@@ -40,18 +48,19 @@ def setcfg(devicemap: str):
 
 def build_device_list(DEVICE_IP_PORT_MAP):
     DEVICES = []
-    for name, host_port in DEVICE_IP_PORT_MAP.devices.items():
-        DEVICES.append(
-            {
-                "host": host_port[0],
-                "port": host_port[1],
-                "auth_username": DEVICE_IP_PORT_MAP.username,
-                "auth_password": DEVICE_IP_PORT_MAP.password,
-                "auth_strict_key": False,
-                "transport": "asyncssh",
-                "platform": "arista_eos",
-            },
-        )
+    for device in DEVICE_IP_PORT_MAP:
+        for hostname, ip in device.items():
+            DEVICES.append(
+                {
+                    "host": ip,
+                    "port": 22,
+                    "auth_username": "admin",
+                    "auth_password": "admin",
+                    "auth_strict_key": False,
+                    "transport": "asyncssh",
+                    "platform": "arista_eos",
+                },
+            )
 
     return DEVICES
 
@@ -61,31 +70,33 @@ def build_device_config_tuple_list(configs_path, DEVICE_IP_PORT_MAP):
     files = Path(configs_path).glob("*")
     for cfg_file in files:
         hostname = str(cfg_file).replace(configs_path, "")
-        for name, host_port in DEVICE_IP_PORT_MAP.devices.items():
-            if hostname == name:
-                device = {
-                    "host": host_port[0],
-                    "port": host_port[1],
-                    "auth_username": DEVICE_IP_PORT_MAP.username,
-                    "auth_password": DEVICE_IP_PORT_MAP.password,
-                    "auth_strict_key": False,
-                    "transport": "asyncssh",
-                    "platform": "arista_eos",
-                }
-                print(f"reading {cfg_file}")
-                with open(cfg_file, "r") as f:
-                    config = f.read()
+        for d1 in DEVICE_IP_PORT_MAP:
+            for name, ip in d1.items():
+                if hostname == name :
+                    device = {
+                        "host": ip,
+                        "port": 22,
+                        "auth_username": "admin",
+                        "auth_password": "admin",
+                        "auth_strict_key": False,
+                        "transport": "asyncssh",
+                        "platform": "arista_eos",
+                    }
+                    print(f"reading {cfg_file}")
+                    with open(cfg_file, "r") as f:
+                        config = f.read()
 
-                DEVICES.append((device, config))
+                    DEVICES.append((device, config))
     return DEVICES
 
 
 def create_file(host, config, DEVICE_IP_PORT_MAP):
     os.makedirs("configs/", exist_ok=True)
-    for name, host_port in DEVICE_IP_PORT_MAP.devices.items():
-        if host == host_port[0]:
-            with open("configs/" + name, "w") as f:
-                f.write(config)
+    for device in DEVICE_IP_PORT_MAP:
+        for hostname, ip in device.items():
+            if host == ip:
+                with open("configs/" + hostname, "w") as f:
+                    f.write(config)
 
 
 async def load_configs(device_config):
