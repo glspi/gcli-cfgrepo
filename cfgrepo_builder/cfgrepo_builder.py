@@ -44,17 +44,23 @@ def setcfg(inventory: str):
 def build_device_list(DEVICE_INVENTORY):
     DEVICES = []
     for hostname, device in DEVICE_INVENTORY["devices"].items():
-        DEVICES.append(
-            {
-                "host": device["ip"],
-                "port": device.get("port") or 22,
-                "auth_username": DEVICE_INVENTORY["credentials"]["default"]["username"],
-                "auth_password": DEVICE_INVENTORY["credentials"]["default"]["password"],
-                "auth_strict_key": False,
-                "transport": "asyncssh",
-                "platform": device["platform"]
+        temp =  {
+            "host": device["ip"],
+            "port": device.get("port") or 22,
+            "auth_username": DEVICE_INVENTORY["credentials"]["default"]["username"],
+            "auth_password": DEVICE_INVENTORY["credentials"]["default"]["password"],
+            "auth_strict_key": False,
+            "transport": "asyncssh",
+            "platform": device["platform"]
             }
-        )
+        if device.get("transport") == "legacy":
+            temp["transport_options"] = {
+                "asyncssh": {
+                    "encryption_algs": ["aes128-cbc", "aes192-cbc", "aes256-ctr", "aes192-ctr"],
+                    "kex_algs": ["diffie-hellman-group-exchange-sha1"]#, "aes192-cbc", "aes256-ctr", "aes192-ctr"]
+                }
+            }
+        DEVICES.append(temp)
 
     return DEVICES
 
@@ -70,11 +76,18 @@ def build_device_config_tuple_list(configs_path, DEVICE_INVENTORY):
                     "host": device["ip"],
                     "port": device.get("port") or 22,
                     "auth_username": DEVICE_INVENTORY["credentials"]["default"]["username"],
-                    "auth_password": DEVICE_INVENTORY["credentials"]["default"]["username"],
+                    "auth_password": DEVICE_INVENTORY["credentials"]["default"]["password"],
                     "auth_strict_key": False,
                     "transport": "asyncssh",
                     "platform": device["platform"]
                 }
+                if device.get("transport") == "legacy":
+                    newdevice["transport_options"] = {
+                        "asyncssh": {
+                            "encryption_algs": ["aes128-cbc", "aes192-cbc", "aes256-ctr", "aes192-ctr"],
+                            "kex_algs": ["diffie-hellman-group-exchange-sha1"]#, "aes192-cbc", "aes256-ctr", "aes192-ctr"]
+                        }
+                    }
                 print(f"reading {cfg_file}")
                 with open(cfg_file, "r") as f:
                     config = f.read()
@@ -99,8 +112,8 @@ async def load_configs(device_config):
             cfg_conn = AsyncScrapliCfg(conn=conn)
             await cfg_conn.prepare()
             await cfg_conn.load_config(config=config, replace=True)
-            diff = await cfg_conn.diff_config()
-            print(diff.side_by_side_diff)
+            #diff = await cfg_conn.diff_config()
+            #print(diff.side_by_side_diff)
             await cfg_conn.commit_config()
 
     except Exception as e:
@@ -113,7 +126,6 @@ async def load_configs(device_config):
 async def get_configs(device, DEVICE_INVENTORY):
     try:
         async with AsyncScrapli(**device) as conn:
-
             cfg_conn = AsyncScrapliCfg(conn=conn)
             await cfg_conn.prepare()
             config = await cfg_conn.get_config(source="running")
