@@ -28,7 +28,7 @@ def getcfg(inventory: str):
     DEVICES = build_device_list(DEVICE_INVENTORY)
     coroutines = [get_configs(device, DEVICE_INVENTORY) for device in DEVICES]
     asyncio.run(async_main(coroutines))
-    print("got em")
+    print("Pulled Configs Successfully.")
 
 
 @app.command("setcfg", help="Push configs in 'repo' onto switches.")
@@ -38,7 +38,7 @@ def setcfg(inventory: str):
     DEVICE_CONFIGS = build_device_config_tuple_list("configs/", DEVICE_INVENTORY)
     coroutines = [load_configs(device_config) for device_config in DEVICE_CONFIGS]
     asyncio.run(async_main(coroutines))
-    print("put em")
+    print("Loaded Configs Successfully.")
 
 
 def create_scrapli_device(DEVICE_INVENTORY, device):
@@ -93,6 +93,7 @@ def create_file(host, config, DEVICE_INVENTORY):
         if host == device["ip"]:
             with open("configs/" + hostname, "w") as f:
                 f.write(config)
+            print(f"got {hostname}")
 
 
 async def load_configs(device_config):
@@ -100,12 +101,18 @@ async def load_configs(device_config):
     config = device_config[1]
     try:
         async with AsyncScrapli(**device) as conn:
-            cfg_conn = AsyncScrapliCfg(conn=conn)
+            conn.timeout_ops = 60
+            conn.timeout_transport = 0
+            cfg_conn = AsyncScrapliCfg(conn=conn, dedicated_connection=True)
             await cfg_conn.prepare()
             await cfg_conn.load_config(config=config, replace=True)
             #diff = await cfg_conn.diff_config()
             #print(diff.side_by_side_diff)
             await cfg_conn.commit_config()
+
+    except scrapli.exceptions.ScrapliTimeout as e:
+        #print(e)
+        print(f"Timeout on connection to {device['host']}.")
 
     except Exception as e:
         print(e)
