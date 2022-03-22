@@ -101,7 +101,7 @@ async def load_configs(device_config):
     config = device_config[1]
     try:
         async with AsyncScrapli(**device) as conn:
-            conn.timeout_ops = 60
+            conn.timeout_ops = 120
             conn.timeout_transport = 0
             cfg_conn = AsyncScrapliCfg(conn=conn, dedicated_connection=True)
             await cfg_conn.prepare()
