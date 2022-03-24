@@ -7,9 +7,12 @@ import importlib
 
 import typer
 import yaml
+from scrapli.settings import Settings
 from scrapli import AsyncScrapli
 from scrapli_cfg import AsyncScrapliCfg
 from scrapli.exceptions import ScrapliTimeout, ScrapliAuthenticationFailed
+
+Settings.SUPPRESS_USER_WARNINGS = True
 
 CONFIGDIR = "configs/"
 app = typer.Typer(name="cfgrepo - config repo get/loader.")
@@ -100,6 +103,7 @@ def create_file(host, config, DEVICE_INVENTORY):
 
 async def load_configs(device_config):
     device = device_config[0]
+    print(f"device= {device}")
     config = device_config[1]
     try:
         async with AsyncScrapli(**device) as conn:
@@ -108,13 +112,18 @@ async def load_configs(device_config):
             cfg_conn = AsyncScrapliCfg(conn=conn, dedicated_connection=True)
             await cfg_conn.prepare()
             await cfg_conn.load_config(config=config, replace=True)
-            #diff = await cfg_conn.diff_config()
-            #print(diff.side_by_side_diff)
-            await cfg_conn.commit_config()
+            diff = await cfg_conn.diff_config()
+            if "!No changes were found" in diff.device_diff:
+                aborted = await cfg_conn.abort_config()
+                print(f"No changes found for {device['host']}, config change aborted.")
+                print(aborted.result)
+            else:
+                print(diff.device_diff)
+                await cfg_conn.commit_config()
 
     except ScrapliTimeout as e:
-        #print(e)
-        print(f"Timeout on connection to {device['host']}.")
+        print(f"Timeout on connection to {device['host']}:")
+        print(e)
 
     except Exception as e:
         print(e)
@@ -129,17 +138,19 @@ async def get_configs(device, DEVICE_INVENTORY):
             cfg_conn = AsyncScrapliCfg(conn=conn)
             await cfg_conn.prepare()
             config = await cfg_conn.get_config(source="running")
-            create_file(conn.host, config.result, DEVICE_INVENTORY)
+            i = config.result.find("!")  # Find first !
+            config = config.result[i:]   # Remove everything before it. Necessary for passing config-diff if no changes required.
+            create_file(conn.host, config, DEVICE_INVENTORY)
 
         return config
 
     except ScrapliAuthenticationFailed as e:
-        #print(e)
-        print(f"Authentication failed to {device['host']}")
+        print(f"Authentication failed to {device['host']}:")
+        print(e)
 
     except OSError as e:
+        print(f"Connection failed to {device['host']}:")
         print(e)
-        print(f"Connection failed to {device['host']}.")
 
     except Exception as e:
         print(e)
