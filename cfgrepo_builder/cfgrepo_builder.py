@@ -9,7 +9,9 @@ import typer
 import yaml
 from scrapli import AsyncScrapli
 from scrapli_cfg import AsyncScrapliCfg
+from scrapli.exceptions import ScrapliTimeout, ScrapliAuthenticationFailed
 
+CONFIGDIR = "configs/"
 app = typer.Typer(name="cfgrepo - config repo get/loader.")
 
 def load_yaml(filename):
@@ -35,7 +37,7 @@ def getcfg(inventory: str):
 def setcfg(inventory: str):
     DEVICE_INVENTORY = load_yaml(inventory)
     print("setcfg")
-    DEVICE_CONFIGS = build_device_config_tuple_list("configs/", DEVICE_INVENTORY)
+    DEVICE_CONFIGS = build_device_config_tuple_list(CONFIGDIR, DEVICE_INVENTORY)
     coroutines = [load_configs(device_config) for device_config in DEVICE_CONFIGS]
     asyncio.run(async_main(coroutines))
     print("Loaded Configs Successfully.")
@@ -88,10 +90,10 @@ def build_device_config_tuple_list(configs_path, DEVICE_INVENTORY):
 
 
 def create_file(host, config, DEVICE_INVENTORY):
-    os.makedirs("configs/", exist_ok=True)
+    os.makedirs(CONFIGDIR, exist_ok=True)
     for hostname, device in DEVICE_INVENTORY["devices"].items():
         if host == device["ip"]:
-            with open("configs/" + hostname, "w") as f:
+            with open(CONFIGDIR + hostname, "w") as f:
                 f.write(config)
             print(f"got {hostname}")
 
@@ -101,7 +103,7 @@ async def load_configs(device_config):
     config = device_config[1]
     try:
         async with AsyncScrapli(**device) as conn:
-            conn.timeout_ops = 120
+            conn.timeout_ops = 10
             conn.timeout_transport = 0
             cfg_conn = AsyncScrapliCfg(conn=conn, dedicated_connection=True)
             await cfg_conn.prepare()
@@ -110,7 +112,7 @@ async def load_configs(device_config):
             #print(diff.side_by_side_diff)
             await cfg_conn.commit_config()
 
-    except scrapli.exceptions.ScrapliTimeout as e:
+    except ScrapliTimeout as e:
         #print(e)
         print(f"Timeout on connection to {device['host']}.")
 
@@ -130,6 +132,10 @@ async def get_configs(device, DEVICE_INVENTORY):
             create_file(conn.host, config.result, DEVICE_INVENTORY)
 
         return config
+
+    except ScrapliAuthenticationFailed as e:
+        #print(e)
+        print(f"Authentication failed to {device['host']}")
 
     except OSError as e:
         print(e)
